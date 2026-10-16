@@ -25,11 +25,7 @@ Multi-Agent Research Automation/
 ├── requirements.txt
 ├── README.md
 ├── .gitignore
-└── .env
 ```
-
-.env.example is an optional template showing the required environment variable, without a real API key. Your actual .env file should stay private and excluded by 
-.gitignore.
 
 ## Setup and Installation
 

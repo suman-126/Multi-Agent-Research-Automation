@@ -467,18 +467,20 @@ if result:
         if final_report:
             st.markdown(final_report)
 
-           
         if final_report:
             # Clean Markdown formatting for the downloaded file
             download_report = html.unescape(final_report)
             download_report = download_report.replace("\u00a0", " ")
+
+            # Fix common escaped Markdown characters
             download_report = download_report.replace(r"\*\*", "**")
-            download_report = download_report.replace(r"\.", ".")
+            download_report = download_report.replace(r"\*", "*")
+            download_report = download_report.replace(r"\#", "#")
             download_report = download_report.replace(r"\-", "-")
-            download_report = download_report.replace("****", "**")
 
             # Remove bold formatting wrapped around Markdown headings
             download_lines = []
+
             for line in download_report.splitlines():
                 stripped = line.strip()
 
@@ -499,7 +501,6 @@ if result:
         else:
             st.warning("The workflow did not return a final report.")
 
-
 # FOOTER
 st.markdown(
     """
@@ -509,4 +510,3 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-

@@ -19,7 +19,7 @@ llm = ChatOpenAI(
     base_url="https://openrouter.ai/api/v1",
     temperature=0.2,
     max_tokens=3000,
-)
+) 
 
 # Data shared between all three agents
 class ResearchState(TypedDict):
@@ -72,21 +72,37 @@ def research_planner(state: ResearchState):
 
 
 # AGENT 2: Researcher
+
 def researcher(state: ResearchState):
     print("\nResearcher Agent: Searching the web...")
 
+    topic = state["topic"].strip()
     questions = state["research_questions"].splitlines()
 
-    # Search the main topic and the first two research questions
-    queries = [state["topic"]]
+    # Search the main topic and the first two research questions.
+    queries = [topic]
 
     for question in questions[:2]:
         cleaned_question = question.split(". ", 1)[-1].strip()
         if cleaned_question:
-            queries.append(cleaned_question)
+            queries.append(f"{topic} {cleaned_question}")
 
     results = []
     seen_urls = set()
+    seen_content = set()
+
+    # Build useful keywords from the research topic.
+    stop_words = {
+        "what", "is", "are", "the", "a", "an", "in", "of",
+        "for", "to", "and", "or", "how", "why", "does",
+        "do", "can", "with", "on", "about", "its", "it"
+    }
+
+    topic_words = {
+        word.lower().strip(".,?!:;()[]{}\"'")
+        for word in topic.split()
+    }
+    topic_keywords = topic_words - stop_words
 
     try:
         with DDGS() as search_engine:
@@ -96,26 +112,52 @@ def researcher(state: ResearchState):
                 try:
                     pages = search_engine.text(
                         query,
-                        max_results=3,
+                        max_results=5,
                     )
 
                     for page in pages:
+                        title = page.get("title", "").strip()
                         url = page.get("href", "").strip()
+                        snippet = page.get(
+                            "body", ""
+                        ).strip()
 
-                        if url and url not in seen_urls:
-                            seen_urls.add(url)
+                        if not url or url in seen_urls:
+                            continue
 
-                            results.append(
-                                {
-                                    "title": page.get(
-                                        "title", "Untitled"
-                                    ),
-                                    "url": url,
-                                    "snippet": page.get(
-                                        "body", "No summary available"
-                                    ),
-                                }
-                            )
+                        # Check whether the page relates to the topic.
+                        searchable_text = (
+                            f"{title} {snippet} {url}"
+                        ).lower()
+
+                        matched_keywords = sum(
+                            1 for keyword in topic_keywords
+                            if keyword in searchable_text
+                        )
+
+                        # Require at least one topic keyword match.
+                        if topic_keywords and matched_keywords == 0:
+                            print(f"Skipped unrelated result: {title}")
+                            continue
+
+                        # Avoid duplicate titles and snippets.
+                        content_key = (
+                            title.lower(),
+                            snippet.lower()
+                        )
+                        if content_key in seen_content:
+                            continue
+
+                        seen_urls.add(url)
+                        seen_content.add(content_key)
+
+                        results.append({
+                            "title": title or "Untitled",
+                            "url": url,
+                            "snippet": (
+                                snippet or "No summary available"
+                            ),
+                        })
 
                 except Exception as e:
                     print(f"Search warning: {e}")
@@ -133,15 +175,18 @@ def researcher(state: ResearchState):
                 f"Search snippet: {result['snippet']}\n"
             )
 
-        print(f"Researcher found {len(results)} unique sources.")
+        print(
+            f"Researcher found {len(results)} relevant "
+            "unique sources."
+        )
 
     else:
         research_text = (
-            "No web search results were retrieved. "
+            "No relevant web search results were retrieved. "
             "Do not claim that web research was completed. "
-            "Clearly state that verified sources were unavailable."
+            "Clearly state that relevant sources were unavailable."
         )
-        print("Researcher found no web sources.")
+        print("Researcher found no relevant web sources.")
 
     return {"research_results": research_text}
 
@@ -198,26 +243,45 @@ def report_writer(state: ResearchState):
             response.response_metadata
         )
 
-        if not report:
-            print("Writer returned empty content. Retrying...")
+        # Detect empty responses and safety-only responses.
+        if (
+            not report
+            or report.lower().strip() in {
+                "user safety: safe",
+                "user safety: unsafe",
+            }
+        ):
+            print(
+                "Writer returned an invalid report. Retrying..."
+            )
 
             retry_prompt = (
-                "Write a short research report with a title, "
-                "three key findings, a conclusion, and source URLs. "
-                "Use only these research notes:\n"
-                + state["research_results"][:5000]
-                + "\nTopic: "
+                "Write a complete Markdown research report about: "
                 + state["topic"]
+                + "\n\nResearch questions:\n"
+                + state["research_questions"]
+                + "\n\nResearch results and source URLs:\n"
+                + state["research_results"][:5000]
+                + "\n\nInclude a title, executive summary, five "
+                "key findings, main challenges, conclusion, "
+                "and a Sources section listing actual URLs "
+                "from the research results. Do not invent URLs."
             )
 
             retry_response = llm.invoke(retry_prompt)
             report = str(retry_response.content).strip()
 
-        if not report:
+        if (
+            not report
+            or report.lower().strip() in {
+                "user safety: safe",
+                "user safety: unsafe",
+            }
+        ):
             report = (
-                "Report generation failed because the model "
-                "returned empty responses twice. The web research "
-                "results are available above. Please retry."
+                "Report generation failed: the model did not "
+                "return a usable report. Please retry the topic. "
+                "The collected web sources remain available."
             )
 
     except Exception as e:
@@ -225,7 +289,6 @@ def report_writer(state: ResearchState):
         report = f"Report generation failed: {e}"
 
     return {"final_report": report}
-
 
 
 # Build the LangGraph workflow

@@ -36,10 +36,8 @@ Multi-Agent Research Automation/
 
 ### 1. Clone the repository
 
-Replace `YOUR_USERNAME` with your GitHub username and confirm the repository name matches your actual GitHub repository.
-
 ```bash
-git clone https://github.com/YOUR_USERNAME/Multi-Agent-Research-Automation.git
+git clone https://github.com/suman-126/Multi-Agent-Research-Automation.git
 cd Multi-Agent-Research-Automation
 ```
 

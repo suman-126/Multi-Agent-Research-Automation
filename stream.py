@@ -239,9 +239,7 @@ st.caption(
     "Your research agents will handle the workflow."
 )
 
-
 # RESEARCH INPUT
-
 with st.form("research_form"):
     topic = st.text_input(
         "Research topic",

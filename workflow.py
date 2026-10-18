@@ -1,4 +1,3 @@
-
 import os
 from pathlib import Path
 from typing import TypedDict
@@ -6,7 +5,6 @@ from dotenv import load_dotenv
 from ddgs import DDGS
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, START, END
-
 
 # Load the API key from this project's .env file
 env_path = Path(__file__).resolve().parent / ".env"
@@ -70,9 +68,7 @@ def research_planner(state: ResearchState):
         )
     return {"research_questions": questions}
 
-
 # AGENT 2: Researcher
-
 def researcher(state: ResearchState):
     print("\nResearcher Agent: Searching the web...")
 
@@ -192,7 +188,6 @@ def researcher(state: ResearchState):
 
 
 # AGENT 3: Report Writer
-
 def report_writer(state: ResearchState):
     print("\nReport Writer Agent: Creating the report...")
 
